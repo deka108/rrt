@@ -2,6 +2,7 @@ from __future__ import division
 import pybullet as p
 import pybullet_data
 import numpy as np
+import random
 import time
 import argparse
 
@@ -54,7 +55,7 @@ def build_path(start_idx, goal_idx, V, E):
         adj_list[edge[0]].append(edge[1])
         adj_list[edge[1]].append(edge[0])
 
-    path_idx = find_path(0, len(adj_list)-1, adj_list, 
+    path_idx = find_path(start_idx, goal_idx, adj_list, 
         visited=set(), final_path=[])
     
     if path_idx is not None:
@@ -191,7 +192,6 @@ def birrt():
 
                 # change index for second one
                 len_first_one = len(V1)
-                print(len_first_one)
 
                 # add all nodes in V2 to V1
                 for v in V2:
@@ -225,18 +225,67 @@ def birrt():
         goal_idx = np.argwhere((V1 == q_goal).all(axis=1))[0][0]
         
         path_idx = build_path(start_idx, goal_idx, V1, E1)
-        print(path_idx)
-        print(goal_idx)
-
-        return [V1[idx] for idx in path_idx]
+        path = [V1[idx] for idx in path_idx]
+        print("path building done!")
+        return path
 
 
 def birrt_smoothing():
     ################################################################
     # TODO your code to implement the birrt algorithm with smoothing
     ################################################################
-    pass
+    path = birrt()
 
+    if path is not None:
+        for i in range(smooth_count):
+            # select two random points
+            q1_idx, q2_idx = random.sample(range(len(path)), 2)
+            num_of_skips = abs(q2_idx - q1_idx)
+            
+            if q1_idx > q2_idx:
+                q1_idx, q2_idx = q2_idx, q1_idx
+            
+            q1 = path[q1_idx]
+            q2 = path[q2_idx]
+
+            # if no collision when moving from q1 to q2
+            is_collision = False
+            num_of_steps = 0
+
+            q_start = q1
+            new_path = []
+            while True:
+                # base case: collide or within step size
+                q_new = progress_by_step_size(q_start, q2)
+                num_of_steps += 1
+
+                if collision_fn(q_new):
+                    is_collision = True
+                    break
+                
+                new_path.append(q_new)
+                if np.linalg.norm(q_new - q2) <= step_size:
+                    break
+            
+                q_start = q_new
+            
+            # snip the path between q1 and q2
+            if not is_collision and num_of_skips > num_of_steps:
+                j = 0
+                N = len(path)
+                # remove elements between q1_idx and q2_idx
+                for i in range(N):
+                    if i <= q1_idx or i >= q2_idx:
+                        path[j] = path[i]
+                        j += 1
+                
+                path = path[:j]
+                
+                # insert the new path
+                for i in range(len(new_path)):
+                    path.insert(q1_idx + 1 +i, new_path[i])
+        
+        return path                
 
 if __name__ == "__main__":
     args = get_args()
@@ -271,9 +320,10 @@ if __name__ == "__main__":
 
     # define constants
     N = 1000
+    smooth_count = 100
     step_size = 0.05
     bias = 0.05
-    smooth_count = 0
+    
     lower_bound = -1
     upper_bound = 1
 
