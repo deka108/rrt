@@ -273,6 +273,7 @@ def birrt_smoothing():
             if not is_collision and num_of_skips > num_of_steps:
                 j = 0
                 N = len(path)
+
                 # remove elements between q1_idx and q2_idx
                 for i in range(N):
                     if i <= q1_idx or i >= q2_idx:
@@ -281,7 +282,7 @@ def birrt_smoothing():
                 
                 path = path[:j]
                 
-                # insert the new path
+                # insert the new path between q1_idx and q2_idx
                 for i in range(len(new_path)):
                     path.insert(q1_idx + 1 +i, new_path[i])
         
