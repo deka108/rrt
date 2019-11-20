@@ -32,19 +32,203 @@ def get_args():
     args = parser.parse_args()
     return args
 
+def find_nn(V, q):
+    distances = np.linalg.norm(V - q, axis=1)
+    nearest_idx = np.argmin(distances)
+
+    return V[nearest_idx], nearest_idx
+
+def progress_by_step_size(q_src, q_dest):
+    diff = q_dest - q_src
+    norm = np.linalg.norm(diff)
+    delta = (step_size / norm) * diff
+
+    return q_src + delta
+
+def build_path(start_idx, goal_idx, V, E):
+    adj_list = {
+        k:[]        
+        for k in range(len(V))
+    }
+    for edge in E:
+        adj_list[edge[0]].append(edge[1])
+        adj_list[edge[1]].append(edge[0])
+
+    path_idx = find_path(0, len(adj_list)-1, adj_list, 
+        visited=set(), final_path=[])
+    
+    if path_idx is not None:
+        return path_idx
+
+def find_path(start_idx, goal_idx, adj_list, visited=set(), final_path=[]):
+    visited.add(start_idx)
+    final_path.append(start_idx)
+
+    if start_idx == goal_idx:
+        return final_path
+
+    for n in adj_list[start_idx]:
+        if n not in visited:
+            res = find_path(n, goal_idx, adj_list, 
+                visited, final_path)
+
+            if res is not None:
+                return res
+    
+    # backtrack try different node
+    final_path.pop()
+    visited.remove(start_idx)
+    
+
+def extend_rrt(V, E, q, world_pos, color):
+    q_near, q_near_idx = find_nn(V, q)
+    
+    # avoid division by 0
+    if np.linalg.norm(q - q_near) == 0.0:
+        return
+
+    # move from q_near to q
+    q_new = progress_by_step_size(q_near, q)
+
+    if not collision_fn(q_new):
+        cur_world_pos = p.getLinkState(ur5, 3)[0]
+        V.append(q_new)
+
+        # insert index of node to E
+        E.append((q_near_idx, len(V)-1))
+        world_pos.append(cur_world_pos)
+        
+        p.addUserDebugLine(
+            lineFromXYZ=world_pos[q_near_idx],
+            lineToXYZ=cur_world_pos,
+            lineColorRGB=color, 
+            lineWidth = 0.5
+        )
+
+        return q_new
 
 def rrt():
+    V = [q_start] # insert q_start
+    E = []
+    world_pos = [start_position]
+
     ###############################################
     # TODO your code to implement the rrt algorithm
     ###############################################
-    pass
+    
+    is_goal_found = False
+    for idx in range(N):
+        follow_goal = np.random.choice([False, True], p=[1-bias, bias])
+        if follow_goal:
+            q_rand = q_goal
+        else:
+            q_rand = np.random.uniform(lower_bound, upper_bound, 3)
+        
+        q_new = extend_rrt(V, E, q_rand, world_pos, [0, 1, 0])
 
+        if q_new is not None and np.linalg.norm(q_goal - q_new) < step_size:
+            print("goal is found!")
+            is_goal_found = True
+            break
+    
+    if is_goal_found:
+        path_idx = build_path(0, len(V) - 1, V, E)
+        
+        return [V[idx] for idx in path_idx]
+
+def check_connected(V1, V2):
+    for idx1, v1 in enumerate(V1):
+        for idx2, v2 in enumerate(V2):
+            if np.linalg.norm(v1-v2) <= step_size:
+                return idx1, idx2
+    return None, None
 
 def birrt():
     #################################################
     # TODO your code to implement the birrt algorithm
     #################################################
-    pass
+    V1 = [q_start] # insert q_start
+    E1 = []
+    world_pos1 = [start_position]
+
+    V2 = [q_goal] # insert q_goal
+    E2 = []
+    world_pos2 = [goal_position]
+
+    is_t1 = True
+    is_goal_found = False
+
+    for idx in range(N):
+        follow_bias = np.random.choice([False, True], p=[1-bias, bias])
+        if follow_bias:
+            if is_t1:
+                q_rand1 = q_goal
+                q_rand2 = q_start
+            else:
+                q_rand1 = q_start
+                q_rand2 = q_goal
+        else:
+            q_rand1 = np.random.uniform(lower_bound, upper_bound, 3)
+            q_rand2 = np.random.uniform(lower_bound, upper_bound, 3)
+
+        if is_t1:
+            color1 = [0, 1, 0]
+            color2 = [0, 0, 1]
+        else:
+            color1 = [0, 0, 1]
+            color2 = [0, 1, 0]
+
+        q_new1 = extend_rrt(V1, E1, q_rand1, 
+            world_pos1, color1)
+        
+        if q_new1 is not None:
+            extend_rrt(V2, E2, q_new1, 
+                world_pos2, color2)
+            idx1, idx2 = check_connected(V1, V2)
+            if idx1 and idx2:
+                print("two graphs are connected!")
+                # combining two graphs
+
+                # change index for second one
+                len_first_one = len(V1)
+                print(len_first_one)
+
+                # add all nodes in V2 to V1
+                for v in V2:
+                    V1.append(v)
+
+                # add all edges in V2 to V1
+                for e in E2:
+                    E1.append(
+                        (e[0] + len_first_one, 
+                        e[1] + len_first_one)
+                    )
+
+                # connect the two trees
+                E1.append((idx1, len_first_one + idx2))
+
+                is_goal_found = True
+                break
+            else:
+                extend_rrt(V2, E2, q_rand2, 
+                    world_pos2, color2)
+                    
+        # swap trees
+        is_t1 = not is_t1
+        V1, V2 = V2, V1
+        E1, E2 = E2, E1
+        world_pos1, world_pos2 = world_pos2, world_pos1
+    
+    if is_goal_found:
+        print('path building...')
+        start_idx = np.argwhere((V1 == q_start).all(axis=1))[0][0]
+        goal_idx = np.argwhere((V1 == q_goal).all(axis=1))[0][0]
+        
+        path_idx = build_path(start_idx, goal_idx, V1, E1)
+        print(path_idx)
+        print(goal_idx)
+
+        return [V1[idx] for idx in path_idx]
 
 
 def birrt_smoothing():
@@ -83,13 +267,24 @@ if __name__ == "__main__":
     goal_conf = (0.7527214782907734, -0.6521867735052328, -0.4949270744967443)
     goal_position = (0.35317009687423706, 0.35294029116630554, 0.7246701717376709)
     goal_marker = draw_sphere_marker(position=goal_position, radius=0.02, color=[1, 0, 0, 1])
-    set_joint_positions(ur5, UR5_JOINT_INDICES, start_conf)
+    set_joint_positions(ur5, UR5_JOINT_INDICES, start_conf)    
+
+    # define constants
+    N = 1000
+    step_size = 0.05
+    bias = 0.05
+    smooth_count = 0
+    lower_bound = -1
+    upper_bound = 1
+
+    q_start = np.array(start_conf)
+    q_goal = np.array(goal_conf)
 
     # place holder to save the solution path
     path_conf = None
 
     # get the collision checking function
-    from collision_utils import get_collision_fn
+    from collision_utils import get_collision_fn, get_joint_positions
     collision_fn = get_collision_fn(ur5, UR5_JOINT_INDICES, obstacles=obstacles,
                                        attachments=[], self_collisions=True,
                                        disabled_collisions=set())
@@ -107,14 +302,24 @@ if __name__ == "__main__":
 
     if path_conf is None:
         # pause here
-        raw_input("no collision-free path is found within the time budget, finish?")
+        input("no collision-free path is found within the time budget, finish?")
     else:
         ###############################################
         # TODO your code to highlight the solution path
         ###############################################
 
         # execute the path
+        draw_path = False
         while True:
+            if not draw_path:
+                for q in path_conf:
+                    set_joint_positions(ur5, UR5_JOINT_INDICES, q)
+                    cur_world_pos = p.getLinkState(ur5, 3)[0]
+                    draw_sphere_marker(cur_world_pos, 0.02, 
+                        [1, 0, 0, 1])
+
+                draw_path = True
+            
             for q in path_conf:
                 set_joint_positions(ur5, UR5_JOINT_INDICES, q)
-                time.sleep(0.5)
+                time.sleep(0.3)
