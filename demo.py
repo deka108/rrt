@@ -279,21 +279,18 @@ def birrt():
     E2 = []
     world_pos2 = [goal_position]
 
-    is_t1 = True
+    is_t1 = True # t1 == tree starts from q_start
     is_goal_found = False
 
     for idx in range(N):
-        follow_bias = np.random.choice([False, True], p=[1-bias, bias])
-        if follow_bias:
+        follow_bias1 = np.random.choice([False, True], p=[1-bias, bias])
+        if follow_bias1:
             if is_t1:
                 q_rand1 = q_goal
-                q_rand2 = q_start
             else:
                 q_rand1 = q_start
-                q_rand2 = q_goal
         else:
             q_rand1 = np.random.uniform(lower_bound, upper_bound, 3)
-            q_rand2 = np.random.uniform(lower_bound, upper_bound, 3)
 
         if is_t1:
             color1 = [0, 1, 0]
@@ -302,12 +299,10 @@ def birrt():
             color1 = [0, 0, 1]
             color2 = [0, 1, 0]
 
-        q_new1 = extend_rrt(V1, E1, q_rand1, 
-            world_pos1, color1)
+        q_new1 = extend_rrt(V1, E1, q_rand1, world_pos1, color1)
         
         if q_new1 is not None:
-            extend_rrt(V2, E2, q_new1, 
-                world_pos2, color2)
+            extend_rrt(V2, E2, q_new1, world_pos2, color2)
             idx1, idx2 = check_connected(V1, V2)
             if idx1 and idx2:
                 print("two graphs are connected!")
@@ -333,8 +328,18 @@ def birrt():
                 is_goal_found = True
                 break
             else:
-                extend_rrt(V2, E2, q_rand2, 
-                    world_pos2, color2)
+                # generate q_rand2 for growing the second tree
+                follow_bias2 = np.random.choice([False, True], p=[1-bias, bias])
+                
+                if follow_bias2:
+                    if is_t1: # if first tree starts from q_start, q_rand2 of T2 should be going towards q_start
+                        q_rand2 = q_start
+                    else:
+                        q_rand2 = q_goal
+                else:
+                    q_rand2 = np.random.uniform(lower_bound, upper_bound, 3)
+
+                extend_rrt(V2, E2, q_rand2, world_pos2, color2)
                     
         # swap trees
         is_t1 = not is_t1
@@ -467,9 +472,9 @@ if __name__ == "__main__":
     set_joint_positions(ur5, UR5_JOINT_INDICES, start_conf)    
 
     # define constants
-    N = 100
+    N = 1000
     smooth_count = 100
-    step_size = 0.05
+    step_size = 0.04
     bias = 0.05
     
     lower_bound = -1
