@@ -472,7 +472,7 @@ if __name__ == "__main__":
     set_joint_positions(ur5, UR5_JOINT_INDICES, start_conf)    
 
     # define constants
-    N = 1000
+    N = 10000
     smooth_count = 100
     step_size = 0.04
     bias = 0.05
