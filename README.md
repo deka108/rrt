@@ -13,7 +13,8 @@ Lab 4 for [COMSW4733 Computational Aspects of Robotics](https://www.cs.columbia.
 ### Prerequisites:
 
 1. Installation of pybullet on the machine
-2. demo.py needs to be working on the host machine
+1. Python 3.6 or above needs to be installed in the machine
+1. demo.py needs to be working on the host machine
 
 ----
 ### Usage
