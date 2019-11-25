@@ -75,6 +75,6 @@ It is implemented using the three main steps:
 
 #### Video Link
 
-The run for these algorithms is available at 
+The run for these algorithms is available at https://www.youtube.com/playlist?list=PLMbCjZrjdlPNAQHShtGJahKy7xniH-x88
 
 
